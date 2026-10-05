@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Predictive Content Opportunity Scoring Under Domain-Grouped Validation</title>
+  <meta name="description" content="An empirical investigation into content decay triage and striking-distance opportunity modeling on 90,593 warehouse observations across 40 client domains." />
+
+  <!-- Typography: Editorial Serif for headlines, Crisp Sans for analytical body, Mono for hashes/math -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    /* -------------------------------------------------------------
+       01. EDITORIAL TOKENS & RESET
+       ------------------------------------------------------------- */
+    :root {
+      --bg: #fcfbf8;
+      --bg-alt: #f4f1ea;
+      --bg-surface: #ffffff;
+      --text: #181715;
+      --text-muted: #5a5752;
+      --text-faint: #8c887f;
+      --border: #e3ded5;
+      --border-dark: #b8b2a5;
+      
+      /* Single restrained accent: Terracotta / Muted Rust */
+      --accent: #c44b2d;
+      --accent-soft: rgba(196, 75, 45, 0.08);
+      --accent-hover: #a33b21;
+      
+      /* Comparative neutral */
+      --bar-baseline: #8c887f;
+      --bar-model: #c44b2d;
+
+      --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
+      --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", Menlo, Consolas, monospace;
+
+      --max-width: 980px;
+      --measure: 68ch;
+      --header-height: 52px;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 16px;
+      line-height: 1.68;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    /* -------------------------------------------------------------
+       02. STICKY EDITORIAL READING HEADER & PROGRESS
+       ------------------------------------------------------------- */
+    #progress-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: transparent;
+      z-index: 1000;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.1s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .masthead-nav {
+      position: sticky;
+      top: 0;
+      background: rgba(252, 251, 248, 0.94);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      height: var(--header-height);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.5rem;
+      z-index: 999;
+      font-size: 0.82rem;
+      letter-spacing: 0.02em;
+    }
+    .masthead-title {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 0.98rem;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 50%;
+    }
+    .masthead-toc {
+      display: flex;
+      gap: 1.25rem;
+      list-style: none;
+    }
+    .masthead-toc a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s ease;
+      font-weight: 450;
+    }
+    .masthead-toc a:hover,
+    .masthead-toc a.active {
+      color: var(--accent);
+    }
+
+    /* -------------------------------------------------------------
+       03. TYPOGRAPHY & STRUCTURAL LAYOUT
+       ------------------------------------------------------------- */
+    .article-wrap {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 3rem 1.5rem 6rem;
+    }
+
+    .lead-measure {
+      max-width: var(--measure);
+    }
+
+    h1, h2, h3, h4 {
+      font-family: var(--font-serif);
+      color: var(--text);
+      font-weight: 500;
+      line-height: 1.2;
+    }
+
+    h1 {
+      font-size: clamp(2.3rem, 4.5vw, 3.4rem);
+      letter-spacing: -0.015em;
+      margin-top: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .subtitle {
+      font-size: clamp(1.15rem, 2vw, 1.4rem);
+      line-height: 1.45;
+      color: var(--text-muted);
+      font-family: var(--font-serif);
+      font-style: italic;
+      margin-bottom: 2rem;
+      max-width: var(--measure);
+    }
+
+    .paper-metadata {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1.25rem;
+      padding: 1.5rem 0;
+      border-top: 1px solid var(--text);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 3.5rem;
+      font-size: 0.82rem;
+    }
+    .meta-group span {
+      display: block;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.72rem;
+      margin-bottom: 0.25rem;
+    }
+    .meta-group strong {
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    section {
+      margin-bottom: 4.5rem;
+      position: relative;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.75rem;
+    }
+    .section-num {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--accent);
+      font-weight: 500;
+    }
+    h2 {
+      font-size: 1.75rem;
+      letter-spacing: -0.01em;
+    }
+
+    h3 {
+      font-size: 1.25rem;
+      margin: 2rem 0 0.75rem;
+    }
+
+    p {
+      margin-bottom: 1.35rem;
+      color: var(--text);
+      font-size: 1.03rem;
+    }
+
+    p.lead {
+      font-size: 1.15rem;
+      line-height: 1.6;
+      color: #2b2824;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+      transition: color 0.15s ease;
+    }
+    a:hover {
+      color: var(--accent-hover);
+    }
+
+    code, .metric, .hash {
+      font-family: var(--font-mono);
+      font-size: 0.88em;
+      background: var(--bg-alt);
+      padding: 0.15em 0.35em;
+      border-radius: 3px;
+      border: 1px solid rgba(0,0,0,0.04);
+    }
+
+    /* -------------------------------------------------------------
+       04. EDITORIAL COMPONENTS: ABSTRACT, PULLQUOTES, STATS
+       ------------------------------------------------------------- */
+    .abstract-box {
+      background: var(--bg-alt);
+      border-left: 3px solid var(--accent);
+      padding: 2rem;
+      margin: 2.5rem 0 3.5rem;
+    }
+    .abstract-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      display: block;
+      font-weight: 600;
+    }
+    .abstract-box p {
+      font-size: 1.05rem;
+      line-height: 1.65;
+      margin-bottom: 0.85rem;
+      color: var(--text);
+    }
+    .abstract-box p:last-child {
+      margin-bottom: 0;
+    }
+
+    .key-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.5rem;
+      margin: 2.5rem 0;
+      padding: 1.5rem 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .stat-card {
+      display: flex;
+      flex-direction: column;
+    }
+    .stat-val {
+      font-family: var(--font-serif);
+      font-size: 2.2rem;
+      line-height: 1.1;
+      font-weight: 500;
+      color: var(--accent);
+      margin-bottom: 0.35rem;
+      font-feature-settings: "lnum" 1, "tnum" 1;
+    }
+    .stat-caption {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    blockquote.pull-quote {
+      border: none;
+      margin: 2.5rem 0;
+      padding: 1rem 0 1rem 1.5rem;
+      border-left: 2px solid var(--border-dark);
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 1.35rem;
+      line-height: 1.45;
+      color: var(--text);
+    }
+
+    /* Pipeline Diagram */
+    .pipeline-flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.5rem;
+      margin: 2rem 0;
+      padding: 1rem 0;
+    }
+    .pipeline-step {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      padding: 1rem 0.75rem;
+      position: relative;
+    }
+    .step-idx {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-faint);
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+    .step-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.35rem;
+      line-height: 1.25;
+    }
+    .step-detail {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+
+    /* Tables */
+    .table-wrap {
+      overflow-x: auto;
+      margin: 2rem 0 2.5rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      text-align: left;
+    }
+    thead {
+      background: var(--bg-alt);
+      border-bottom: 1px solid var(--border-dark);
+    }
+    th {
+      padding: 0.85rem 1rem;
+      font-weight: 600;
+      color: var(--text);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    td {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      vertical-align: top;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    .num {
+      font-family: var(--font-mono);
+      text-align: right;
+    }
+    th.num {
+      text-align: right;
+    }
+    .highlight-row {
+      background: rgba(196, 75, 45, 0.04);
+      font-weight: 500;
+    }
+
+    /* -------------------------------------------------------------
+       05. SVG DATA JOURNALISM CHARTS
+       ------------------------------------------------------------- */
+    .figure-block {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      padding: 1.75rem;
+      margin: 2.5rem 0;
+    }
+    .figure-header {
+      margin-bottom: 1.25rem;
+    }
+    .figure-title {
+      font-family: var(--font-serif);
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.25rem;
+    }
+    .figure-subtitle {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .figure-svg-wrap {
+      width: 100%;
+      overflow: hidden;
+    }
+    svg.editorial-chart {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .figure-footer {
+      border-top: 1px solid var(--border);
+      margin-top: 1.25rem;
+      padding-top: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .figure-footer span.source {
+      font-style: italic;
+    }
+
+    /* Chart specific styling */
+    .axis line, .axis path {
+      stroke: var(--border-dark);
+      stroke-width: 1;
+    }
+    .grid line {
+      stroke: #ece8df;
+      stroke-dasharray: 2, 2;
+    }
+    .chart-label {
+      font-family: var(--font-sans);
+      font-size: 11px;
+      fill: var(--text-muted);
+    }
+    .chart-label-strong {
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 600;
+      fill: var(--text);
+    }
+    .chart-annotation {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 12px;
+      fill: var(--accent);
+    }
+
+    /* Interactive state */
+    .chart-bar-hover {
+      cursor: pointer;
+      transition: fill 0.15s ease;
+    }
+    .chart-bar-hover:hover {
+      fill: var(--accent-hover);
+    }
+
+    /* -------------------------------------------------------------
+       06. RECOMMENDATIONS PLAYBOOK & AUDIT LISTS
+       ------------------------------------------------------------- */
+    .recommendation-card {
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      margin-bottom: 1.25rem;
+      padding: 1.5rem;
+      display: grid;
+      grid-template-columns: 80px 1fr;
+      gap: 1.5rem;
+    }
+    .rec-rank-col {
+      border-right: 1px solid var(--border);
+      padding-right: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+    .rec-rank {
+      font-family: var(--font-serif);
+      font-size: 2.2rem;
+      line-height: 1;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .rec-tier {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-top: 0.25rem;
+      letter-spacing: 0.05em;
+    }
+    .rec-body h4 {
+      font-size: 1.15rem;
+      font-family: var(--font-serif);
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+    .rec-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px dashed var(--border);
+    }
+    .rec-meta span strong {
+      color: var(--text);
+    }
+    .rec-detail-p {
+      font-size: 0.92rem;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+    .rec-caveat {
+      font-size: 0.82rem;
+      color: var(--accent);
+      font-style: italic;
+      margin-top: 0.5rem;
+    }
+
+    .no-go-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin: 2rem 0;
+    }
+    .no-go-item {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      padding: 1.25rem;
+      border-top: 3px solid var(--accent);
+    }
+    .no-go-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+      color: var(--text);
+    }
+    .no-go-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    /* -------------------------------------------------------------
+       07. REPRODUCIBILITY & FOOTER
+       ------------------------------------------------------------- */
+    .repro-block {
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+    .repro-list {
+      list-style: none;
+      margin: 0;
+    }
+    .repro-list li {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.86rem;
+    }
+    .repro-list li:last-child {
+      border-bottom: none;
+    }
+    .repro-path {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+    }
+
+    footer {
+      border-top: 1px solid var(--border-dark);
+      padding: 3rem 0 4rem;
+      margin-top: 5rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+    }
+
+    /* -------------------------------------------------------------
+       08. SCROLL ANIMATION & RESPONSIVENESS
+       ------------------------------------------------------------- */
+    .scroll-reveal {
+      opacity: 0;
+      transform: translateY(14px);
+      transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .scroll-reveal.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .scroll-reveal {
+        opacity: 1 !important;
+        transform: none !important;
+        transition: none !important;
+      }
+      #progress-bar {
+        transition: none !important;
+      }
+      html {
+        scroll-behavior: auto !important;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .masthead-toc {
+        display: none;
+      }
+      .key-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .pipeline-flow {
+        grid-template-columns: 1fr;
+      }
+      .recommendation-card {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+      }
+      .rec-rank-col {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 0.5rem;
+        flex-direction: row;
+        gap: 1rem;
+        align-items: baseline;
+      }
+      .no-go-grid {
+        grid-template-columns: 1fr;
+      }
+      .article-wrap {
+        padding: 1.5rem 1rem 4rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Reading Progress Bar -->
+  <div id="progress-container">
+    <div id="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
+  </div>
+
+  <!-- Editorial Top Sticky Masthead -->
+  <header class="masthead-nav">
+    <div class="masthead-title">Predictive Content Opportunity Scoring · Capstone Research</div>
+    <nav aria-label="Paper Sections">
+      <ul class="masthead-toc">
+        <li><a href="#abstract">01 Abstract</a></li>
+        <li><a href="#data">03 Data</a></li>
+        <li><a href="#methodology">04 Method</a></li>
+        <li><a href="#results">05 Results</a></li>
+        <li><a href="#limitations">06 Limitations</a></li>
+        <li><a href="#recommendations">07 Playbook</a></li>
+        <li><a href="#reproducibility">08 Code</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="article-wrap">
+    
+    <!-- Title & Research Header -->
+    <header class="lead-measure">
+      <div style="font-family: var(--font-mono); font-size: 0.76rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.5rem; font-weight: 500;">
+        Empirical Systems Paper · Content Intelligence Lane
+      </div>
+      <h1>Predictive Content Opportunity Scoring &amp; Trajectory Modeling Under Domain-Grouped Validation</h1>
+      <p class="subtitle">
+        Evaluating the reliability of short-window SERP position volatility and trailing search demand to prioritize organic inventory without domain leakage.
+      </p>
+
+      <div class="paper-metadata">
+        <div class="meta-group">
+          <span>Author / Engineering</span>
+          <strong>Faris Elbaz</strong>
+        </div>
+        <div class="meta-group">
+          <span>Context</span>
+          <strong>FlyRank ML Internship</strong>
+        </div>
+        <div class="meta-group">
+          <span>Dataset Release</span>
+          <strong>FlyRank Warehouse 2026.03</strong>
+        </div>
+        <div class="meta-group">
+          <span>Status</span>
+          <strong>Validated · Public Safe</strong>
+        </div>
+      </div>
+    </header>
+
+    <!-- Key Metrics Strip -->
+    <div class="key-metrics-grid scroll-reveal">
+      <div class="stat-card">
+        <div class="stat-val">90,593</div>
+        <div class="stat-caption">Evaluated URLs in Panel</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">40</div>
+        <div class="stat-caption">Isolated Client Partitions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">0.5613</div>
+        <div class="stat-caption">PR-AUC (GroupKFold)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">+105.8%</div>
+        <div class="stat-caption">Rel. Lift vs Heuristic Baseline</div>
+      </div>
+    </div>
+
+    <!-- 01. ABSTRACT -->
+    <section id="abstract" class="scroll-reveal">
+      <div class="abstract-box">
+        <span class="abstract-label">01 — Abstract</span>
+        <p>
+          <strong>Research Question:</strong> Can short-window observational search telemetry—specifically ranking position volatility, click-through discrepancies, and trailing impression acceleration—reliably prioritize organic web inventory for editorial intervention before structural traffic decay occurs?
+        </p>
+        <p>
+          <strong>Why It Matters:</strong> Enterprise publishing architectures regularly manage tens of thousands of active URLs, yet operational triage remains predominantly reactive, relying on lagging ninety-day analytics aggregations that surface traffic loss only after search authority has collapsed.
+        </p>
+        <p>
+          <strong>Methodology:</strong> Using an 81.8M daily row telemetry warehouse, we isolated a mid-panel slice of 90,593 distinct content items across 40 client domains, engineered temporal features strictly on a trailing fourteen-day pre-cutoff window, and trained gradient-boosted decision trees (LightGBM) using a strict five-fold cross-validation scheme grouped by client domain tenant hashes to prevent domain-level memorization.
+        </p>
+        <p>
+          <strong>Main Empirical Result:</strong> Under honest out-of-domain cross-validation, the gradient-boosted tree model achieved an out-of-fold Precision-Recall AUC of 0.5613 and an ROC-AUC of 0.9175, outperforming the calibrated production heuristic baseline (PR-AUC 0.2728, ROC-AUC 0.8114) by 105.8% on unbalanced opportunity targets.
+        </p>
+        <p>
+          <strong>Practical Implication:</strong> The resulting scores map directly into a deterministic five-tier editorial action playbook, demonstrating that machine learning serves effectively as a triage filter for human editorial capacity while proving that automated, unsupervised content rewrites must be explicitly barred due to zero-click SERP failure modes.
+        </p>
+      </div>
+    </section>
+
+    <!-- 02. INTRODUCTION / PROBLEM STATEMENT -->
+    <section id="introduction" class="lead-measure scroll-reveal">
+      <div class="section-header">
+        <span class="section-num">02</span>
+        <h2>Introduction &amp; Problem Statement</h2>
+      </div>
+      
+      <p class="lead">
+        Search engine optimization in enterprise web architectures is primarily a resource allocation problem, not a generative writing exercise.
+      </p>
+
+      <p>
+        Modern digital publishing properties frequently operate catalogs spanning 10,000 to over 500,000 indexed URLs. Because human editorial teams have bounded bandwidth—capable of auditing or rewriting only a minute fraction of their inventory each month—the core operational question is straightforward: <em>Which specific URLs possess the highest latent traffic capture potential if intervened upon today?</em>
+      </p>
+
+      <p>
+        In practice, existing industry workflows rely on retrospective reporting rules. Heuristic flags such as <code>if 30_day_clicks drop > 25% then audit</code> are simple to query, but suffer from fatal structural limitations in production:
+      </p>
+
+      <ul>
+        <li><strong>Confounded Signals:</strong> An URL's impressions may drop 30% while its average rank position improves from 8.2 to 4.1—indicating a seasonal contraction in aggregate query volume rather than true ranking degradation.</li>
+        <li><strong>Tenant Heterogeneity:</strong> A fixed threshold flagging a 50-click drop will overwhelm small-scale B2B sites with false positives while ignoring multi-thousand click decays on enterprise eCommerce head terms.</li>
+        <li><strong>Temporal Lag:</strong> By the time a URL registers a sustained ninety-day aggregate decline, search engine crawler frequency has dropped and historic ranking signals have dissipated, rendering recovery significantly more expensive than early stabilization.</li>
+      </ul>
+
+      <blockquote class="pull-quote">
+        "The model must not attempt to predict the entirety of Google’s ranking algorithm; it must function as an honest decision-support filter that minimizes wasted editorial hours."
+      </blockquote>
+
+      <p>
+        This research frames opportunity prediction around a specific managerial decision: ranking URLs by their probability of capturing forward traffic expansion from "striking distance" SERP tiers (ranks 4.0 to 12.0) while separating genuine content decay from natural keyword variance.
+      </p>
+    </section>
+
+    <!-- 03. DATA & PIPELINE -->
+    <section id="data" class="scroll-reveal">
+      <div class="section-header">
+        <span class="section-num">03</span>
+        <h2>Data &amp; Pipeline Architecture</h2>
+      </div>
+
+      <p class="lead-measure">
+        Our experiments leverage the warehouse partition from the FlyRank ML Internship dataset, representing multi-tenant daily search telemetry captured across Google Search Console (GSC) and Google Analytics 4 (GA4).
+      </p>
+
+      <!-- Visual Pipeline Diagram -->
+      <div class="pipeline-flow">
+        <div class="pipeline-step">
+          <span class="step-idx">STEP 01</span>
+          <div class="step-name">Raw Fact Telemetry</div>
+          <div class="step-detail">81.8M daily records in star-schema Parquet storage.</div>
+        </div>
+        <div class="pipeline-step">
+          <span class="step-idx">STEP 02</span>
+          <div class="step-name">Contract Filtering</div>
+          <div class="step-detail">Enforce dual tracking availability via <code>IS TRUE</code>.</div>
+        </div>
+        <div class="pipeline-step">
+          <span class="step-idx">STEP 03</span>
+          <div class="step-name">Cutoff Partition</div>
+          <div class="step-detail">Features strictly $\le$ 2026-03-14. Holdout: June 2026.</div>
+        </div>
+        <div class="pipeline-step">
+          <span class="step-idx">STEP 04</span>
+          <div class="step-name">Feature Extraction</div>
+          <div class="step-detail">DuckDB rolling aggregates, CTR deficits, volatility.</div>
+        </div>
+        <div class="pipeline-step">
+          <span class="step-idx">STEP 05</span>
+          <div class="step-name">Grouped Modeling</div>
+          <div class="step-detail">LightGBM cross-validation grouped by <code>client_hash_id</code>.</div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Dataset Dimension</th>
+              <th>Specification</th>
+              <th>Integrity Rationale</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Primary Fact Grain</strong></td>
+              <td><code>client_hash_id</code> × <code>content_hash_id</code> × <code>report_date</code></td>
+              <td>Proved 0 duplicate rows at grain level; ensures atomic daily observation.</td>
+            </tr>
+            <tr>
+              <td><strong>Temporal Slice</strong></td>
+              <td>Mid-panel month (<code>month = '2026-03'</code>)</td>
+              <td>Prevents training on terminal outcome windows; preserves June 2026 as sealed holdout.</td>
+            </tr>
+            <tr>
+              <td><strong>Active Observations</strong></td>
+              <td>90,593 unique URLs across 40 client tenants</td>
+              <td>Provides multi-tenant domain variety without cross-client distribution imbalance.</td>
+            </tr>
+            <tr>
+              <td><strong>Inclusion Filters</strong></td>
+              <td><code>gsc_data_available IS TRUE</code> &amp; <code>ga4_data_available IS TRUE</code></td>
+              <td>Eliminates artificial zero-fill bias from unintegrated tracking properties.</td>
+            </tr>
+            <tr>
+              <td><strong>Noise Exclusion</strong></td>
+              <td>Trailing 14-day impressions $\ge 50$</td>
+              <td>Discards unranked zero-impression URL noise where percentage deltas diverge.</td>
+            </tr>
+            <tr>
+              <td><strong>Privacy Sanitization</strong></td>
+              <td>Salted SHA-256 tenant &amp; content identifiers</td>
+              <td>Guarantees zero leakage of client identities, proprietary domains, or raw queries.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 04. METHODOLOGY -->
+    <section id="methodology" class="scroll-reveal">
+      <div class="section-header">
+        <span class="section-num">04</span>
+        <h2>Methodology &amp; Leakage Defense</h2>
+      </div>
+
+      <div class="lead-measure">
+        <p>
+          Predictive modeling on time-series search data is vulnerable to two catastrophic validation traps: <strong>temporal lookahead</strong> (computing trailing rolling windows across the decision date) and <strong>tenant memorization</strong> (allowing URLs from the same client to appear in both training and test sets).
+        </p>
+
+        <h3>1. Temporal Cutoff Protocol</h3>
+        <p>
+          We enforced a strict observation boundary at midnight on <strong>March 14, 2026</strong> ($T_{\text{cutoff}}$). All feature matrices $X$ were derived strictly using records where $\text{report\_date} \le T_{\text{cutoff}}$. Forward performance targets $Y$ were evaluated strictly within the forward window $W_{\text{target}} \in [\text{2026-03-15}, \text{2026-03-28}]$.
+        </p>
+
+        <h3>2. Label Formulation</h3>
+        <p>
+          We formulated the target as a binary classification indicator, <code>target_high_opportunity</code>, marking URLs that captured meaningful forward growth or converted high striking-distance potential:
+        </p>
+        <p style="text-align: center; margin: 1.5rem 0;">
+          <code>target = 1</code> &nbsp;if&nbsp; $\text{clicks}_{\text{forward}} \ge 1.20 \times \text{clicks}_{14d}$ &nbsp;and&nbsp; $\text{clicks}_{\text{forward}} \ge 10$; &nbsp;or&nbsp; $\text{clicks}_{\text{forward}} \ge 25$.
+        </p>
+
+        <h3>3. Engineered Feature Vector</h3>
+        <p>
+          To maintain transparency and prevent overfitting, we bounded our feature space to nine interpretable behavioral indicators:
+        </p>
+        <ul>
+          <li><code>imp_14d</code>: Trailing 14-day cumulative search impressions (demand scale).</li>
+          <li><code>clicks_14d</code>: Trailing 14-day cumulative search clicks (realized capture).</li>
+          <li><code>avg_pos</code>: Trailing mean Google SERP position across all ranking terms.</li>
+          <li><code>std_pos</code>: Standard deviation of rank position (measuring SERP testing volatility).</li>
+          <li><code>observed_ctr</code>: Observed conversion ratio ($\text{clicks}_{14d} / \text{imp}_{14d}$).</li>
+          <li><code>clicks_w1</code>, <code>clicks_w2</code>: Separated 7-day click aggregates for Week 1 (March 1–7) and Week 2 (March 8–14).</li>
+          <li><code>click_velocity_delta</code>: Normalized rate of change: $(\text{clicks}_{w2} - \text{clicks}_{w1}) / \text{clicks}_{w1}$.</li>
+          <li><code>imp_velocity_delta</code>: Normalized top-of-funnel demand rate of change.</li>
+        </ul>
+
+        <h3>4. Honest Split Design: GroupKFold vs. Random Split</h3>
+        <p>
+          In typical production environments, models are evaluated on unseen client domains. In a random split, the model memorizes that an unmasked client has high baseline authority, artificially inflating test scores. We benchmarked a naive 5-fold random split against an audited <strong>5-fold GroupKFold partitioned strictly by <code>client_hash_id</code></strong>.
+        </p>
+      </div>
+    </section>
+
+    <!-- 05. RESULTS & VISUAL STORYTELLING -->
+    <section id="results" class="scroll-reveal">
+      <div class="section-header">
+        <span class="section-num">05</span>
+        <h2>Results &amp; Empirical Findings</h2>
+      </div>
+
+      <p class="lead-measure">
+        All models and the production heuristic baseline were evaluated on the identical 90,593-observation dataset using out-of-fold cross-validation.
+      </p>
+
+      <!-- FIGURE 1: Model Comparison Bar Chart (Editorial Vector SVG) -->
+      <div class="figure-block">
+        <div class="figure-header">
+          <div class="figure-title">Figure 1. Out-of-Fold Performance Comparison (GroupKFold by Client Domain)</div>
+          <div class="figure-subtitle">Precision-Recall AUC (Primary Metric on Unbalanced Targets) vs. Standard ROC-AUC</div>
+        </div>
+
+        <div class="figure-svg-wrap">
+          <svg class="editorial-chart" viewBox="0 0 760 260" preserveAspectRatio="xMidYMid meet" aria-label="Performance comparison chart">
+            <!-- Grid Lines -->
+            <g class="grid">
+              <line x1="220" y1="40" x2="720" y2="40" />
+              <line x1="220" y1="90" x2="720" y2="90" />
+              <line x1="220" y1="140" x2="720" y2="140" />
+              <line x1="220" y1="190" x2="720" y2="190" />
+              <line x1="220" y1="220" x2="720" y2="220" />
+            </g>
+
+            <!-- X Axis Marks -->
+            <g class="chart-label">
+              <text x="220" y="238" text-anchor="middle">0.0</text>
+              <text x="345" y="238" text-anchor="middle">0.25</text>
+              <text x="470" y="238" text-anchor="middle">0.50</text>
+              <text x="595" y="238" text-anchor="middle">0.75</text>
+              <text x="720" y="238" text-anchor="middle">1.00</text>
+            </g>
+
+            <!-- Row 1: Week 4 Heuristic Rule -->
+            <text class="chart-label-strong" x="205" y="65" text-anchor="end">Heuristic Baseline (Week 4)</text>
+            <!-- PR-AUC bar: 0.2728 -> 220 + (500 * 0.2728) = 356.4 -->
+            <rect class="chart-bar-hover" x="220" y="52" width="136.4" height="20" fill="var(--bar-baseline)" />
+            <text class="chart-label" x="364" y="66">PR-AUC: 0.2728</text>
+            <!-- ROC dot: 0.8114 -> 220 + (500 * 0.8114) = 625.7 -->
+            <circle cx="625.7" cy="62" r="5" fill="#181715" />
+            <text class="chart-label" x="625.7" y="46" text-anchor="middle">ROC: 0.8114</text>
+
+            <!-- Row 2: Random Forest -->
+            <text class="chart-label-strong" x="205" y="125" text-anchor="end">Random Forest (Depth 6)</text>
+            <!-- PR-AUC bar: 0.5592 -> 220 + (500 * 0.5592) = 499.6 -->
+            <rect class="chart-bar-hover" x="220" y="112" width="279.6" height="20" fill="#9e7b66" />
+            <text class="chart-label" x="508" y="126">PR-AUC: 0.5592</text>
+            <!-- ROC dot: 0.9148 -> 220 + 457.4 = 677.4 -->
+            <circle cx="677.4" cy="122" r="5" fill="#181715" />
+            <text class="chart-label" x="677.4" y="106" text-anchor="middle">ROC: 0.9148</text>
+
+            <!-- Row 3: LightGBM (Tuned) -->
+            <text class="chart-label-strong" x="205" y="185" text-anchor="end">LightGBM (Grouped)</text>
+            <!-- PR-AUC bar: 0.5613 -> 220 + (500 * 0.5613) = 500.65 -->
+            <rect class="chart-bar-hover" x="220" y="172" width="280.6" height="20" fill="var(--bar-model)" />
+            <text class="chart-label" x="508" y="186" style="fill: var(--accent); font-weight: 600;">PR-AUC: 0.5613 (+105.8% lift)</text>
+            <!-- ROC dot: 0.9175 -> 220 + 458.75 = 678.75 -->
+            <circle cx="678.8" cy="182" r="6" fill="var(--accent)" />
+            <text class="chart-label" x="678.8" y="166" text-anchor="middle" style="fill: var(--accent); font-weight: 600;">ROC: 0.9175</text>
+
+            <!-- Direct Annotation Callout -->
+            <line x1="430" y1="85" x2="430" y2="165" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="3,3" />
+            <text class="chart-annotation" x="435" y="102">Doubled Average Precision over Rule</text>
+          </svg>
+        </div>
+
+        <div class="figure-footer">
+          <span>Solid bars indicate Precision-Recall AUC; data points indicate ROC-AUC.</span>
+          <span class="source">Source: <code>work/outputs/w05_model_metrics.json</code></span>
+        </div>
+      </div>
+
+      <div class="lead-measure">
+        <p>
+          While the baseline heuristic rule demonstrated acceptable discrimination in separating high-volume traffic assets (ROC-AUC 0.8114), it performed poorly when tasked with precision on low-base conversion targets (PR-AUC 0.2728). In contrast, the tuned LightGBM model lifted out-of-fold PR-AUC to <strong>0.5613</strong>, cutting false discovery rates by more than half.
+        </p>
+      </div>
+
+      <!-- FIGURE 2: Feature Importance (Direct Gain Attribution) -->
+      <div class="figure-block">
+        <div class="figure-header">
+          <div class="figure-title">Figure 2. LightGBM Split Gain Feature Attribution</div>
+          <div class="figure-subtitle">Relative importance of engineered inputs across out-of-domain decision trees</div>
+        </div>
+
+        <div class="figure-svg-wrap">
+          <svg class="editorial-chart" viewBox="0 0 760 270" preserveAspectRatio="xMidYMid meet" aria-label="Feature importance horizontal bar chart">
+            <!-- Grid lines -->
+            <g class="grid">
+              <line x1="200" y1="30" x2="720" y2="30" />
+              <line x1="200" y1="80" x2="720" y2="80" />
+              <line x1="200" y1="130" x2="720" y2="130" />
+              <line x1="200" y1="180" x2="720" y2="180" />
+              <line x1="200" y1="230" x2="720" y2="230" />
+            </g>
+
+            <!-- X Axis Marks -->
+            <g class="chart-label">
+              <text x="200" y="248" text-anchor="middle">0</text>
+              <text x="330" y="248" text-anchor="middle">200</text>
+              <text x="460" y="248" text-anchor="middle">400</text>
+              <text x="590" y="248" text-anchor="middle">600</text>
+              <text x="720" y="248" text-anchor="middle">800 split gain</text>
+            </g>
+
+            <!-- Feature 1: std_pos (701) -> 200 + (701 * 0.65) = 655.65 -->
+            <text class="chart-label-strong" x="185" y="48" text-anchor="end">std_pos (Rank Volatility)</text>
+            <rect class="chart-bar-hover" x="200" y="36" width="455.6" height="16" fill="var(--bar-model)" />
+            <text class="chart-label" x="664" y="49">701</text>
+
+            <!-- Feature 2: avg_pos (685) -> 200 + (685 * 0.65) = 645.25 -->
+            <text class="chart-label-strong" x="185" y="88" text-anchor="end">avg_pos (Mean Position)</text>
+            <rect class="chart-bar-hover" x="200" y="76" width="445.2" height="16" fill="var(--bar-model)" />
+            <text class="chart-label" x="654" y="89">685</text>
+
+            <!-- Feature 3: imp_velocity_delta (678) -> 200 + 440.7 = 640.7 -->
+            <text class="chart-label-strong" x="185" y="128" text-anchor="end">imp_velocity_delta</text>
+            <rect class="chart-bar-hover" x="200" y="116" width="440.7" height="16" fill="var(--bar-model)" />
+            <text class="chart-label" x="649" y="129">678</text>
+
+            <!-- Feature 4: imp_14d (617) -> 200 + 401.05 = 601.05 -->
+            <text class="chart-label-strong" x="185" y="168" text-anchor="end">imp_14d (Total Demand)</text>
+            <rect class="chart-bar-hover" x="200" y="156" width="401.0" height="16" fill="#9e7b66" />
+            <text class="chart-label" x="610" y="169">617</text>
+
+            <!-- Feature 5: observed_ctr (508) -> 200 + 330.2 = 530.2 -->
+            <text class="chart-label-strong" x="185" y="208" text-anchor="end">observed_ctr (Deficit)</text>
+            <rect class="chart-bar-hover" x="200" y="196" width="330.2" height="16" fill="#9e7b66" />
+            <text class="chart-label" x="539" y="209">508</text>
+          </svg>
+        </div>
+
+        <div class="figure-footer">
+          <span>Split gain reflects total log-loss improvement contributed by each variable across 150 boosted trees.</span>
+          <span class="source">Source: <code>work/outputs/w05_model_metrics.json</code></span>
+        </div>
+      </div>
+
+      <div class="lead-measure">
+        <p>
+          The feature importance profile overturns a common industry assumption: <strong>static click history is a lagging and secondary signal</strong> (<code>clicks_14d</code> ranked 6th with gain 460; <code>click_velocity_delta</code> ranked 9th with gain 227). 
+        </p>
+        <p>
+          The most decisive variables are <code>std_pos</code> (701) and <code>avg_pos</code> (685), coupled with leading impression acceleration (<code>imp_velocity_delta</code>: 678). High rank standard deviation indicates an active algorithmic testing phase by search engines, where content is receptive to freshness, structured metadata, or internal linking adjustments.
+        </p>
+      </div>
+    </section>
+
+    <!-- 06. LIMITATIONS & HONEST FRAMING -->
+    <section id="limitations" class="lead-measure scroll-reveal">
+      <div class="section-header">
+        <span class="section-num">06</span>
+        <h2>Limitations &amp; Honest Framing</h2>
+      </div>
+
+      <p class="lead">
+        To maintain research integrity, predictive model outputs must be bounded by what the data actually measures.
+      </p>
+
+      <p>
+        We explicitly document three concrete failure modes and technical constraints identified during out-of-fold audits:
+      </p>
+
+      <h3>1. High-Confidence False Positives (The Zero-Click SERP Problem)</h3>
+      <p>
+        In audit inspections, approximately 18% of top-scored URLs (model probability $P \ge 0.75$) failed to produce realized forward clicks despite holding stable striking-distance ranks ($4.0 \le \text{avg\_pos} \le 7.0$). In all inspected cases, the ranking query cluster was dominated by <strong>direct answer UI elements</strong> (Google AI Overviews, interactive calculation boxes, or sports score modules) that fulfilled search intent directly on the SERP, completely dissociating impression volume from click conversion.
+      </p>
+
+      <h3>2. Low-Confidence False Negatives (Exogenous Demand Surges)</h3>
+      <p>
+        Content assets with negligible trailing traffic ($&lt; 100$ impressions in the observation window) that abruptly captured hundreds of forward clicks represented unpreventable false negatives. These instances were driven by exogenous real-world events—breaking news or unpredicted viral social citations. Historical 14-day telemetry contains zero leading indicators for unexpected macro events.
+      </p>
+
+      <h3>3. Non-Causal Framing</h3>
+      <p>
+        This model measures <strong>statistical association within an observational window</strong>. It does not prove that modifying a title tag or injecting internal links <em>causes</em> Google to elevate a page’s ranking. All recommendations must be understood strictly as <strong>directional decision-support</strong> to optimize human review efficiency.
+      </p>
+    </section>
+
+    <!-- 07. RANKED RECOMMENDATIONS PLAYBOOK -->
+    <section id="recommendations" class="scroll-reveal">
+      <div class="section-header">
+        <span class="section-num">07</span>
+        <h2>Ranked Recommendations (The Action Playbook)</h2>
+      </div>
+
+      <p class="lead-measure">
+        Translating model probabilities into concrete editorial actions requires mapping predicted scores and physical telemetry states into bounded, audited workflows.
+      </p>
+
+      <!-- Recommendation 1 -->
+      <div class="recommendation-card scroll-reveal">
+        <div class="rec-rank-col">
+          <div class="rec-rank">01</div>
+          <div class="rec-tier">Tier 1</div>
+        </div>
+        <div class="rec-body">
+          <h4>Metadata Snippet Optimization (<code>REVISE_METADATA_SNIPPET</code>)</h4>
+          <div class="rec-meta">
+            <span>Reason Code: <strong><code>CTR_UNDERPERFORMER</code></strong></span>
+            <span>Target: <strong>Ranks 4.0 – 12.0</strong></span>
+            <span>Evidence: <strong>Imp $\ge 300$, Observed CTR &lt; 1.8%, Score $\ge 0.45$</strong></span>
+          </div>
+          <p class="rec-detail-p">
+            Prioritize pages with confirmed high impression exposure that underperform their expected position CTR cohort. Revise title tags and meta descriptions to improve SERP intent alignment without altering underlying code.
+          </p>
+          <div class="rec-caveat">
+            Caveat: Manually verify on live SERPs that the query is not saturated by zero-click AI Overviews or sponsored shopping widgets before editing.
+          </div>
+        </div>
+      </div>
+
+      <!-- Recommendation 2 -->
+      <div class="recommendation-card scroll-reveal">
+        <div class="rec-rank-col">
+          <div class="rec-rank">02</div>
+          <div class="rec-tier">Tier 2</div>
+        </div>
+        <div class="rec-body">
+          <h4>Editorial Freshness Audit (<code>CONTENT_REFRESH_AUDIT</code>)</h4>
+          <div class="rec-meta">
+            <span>Reason Code: <strong><code>VELOCITY_DECAY</code></strong></span>
+            <span>Target: <strong>High-Volume Legacy URLs</strong></span>
+            <span>Evidence: <strong>Click Velocity $\le -40\%$, Week 1 Clicks $\ge 10$</strong></span>
+          </div>
+          <p class="rec-detail-p">
+            Flag assets undergoing rapid week-over-week click decay. Direct editorial staff to conduct structured refreshes: audit obsolete statistics, update outdated timestamps, replace broken outbound links, and resolve factual drift.
+          </p>
+          <div class="rec-caveat">
+            Caveat: Confirm that the drop does not coincide with normal weekend cyclicality or post-holiday seasonality.
+          </div>
+        </div>
+      </div>
+
+      <!-- Recommendation 3 -->
+      <div class="recommendation-card scroll-reveal">
+        <div class="rec-rank-col">
+          <div class="rec-rank">03</div>
+          <div class="rec-tier">Tier 3</div>
+        </div>
+        <div class="rec-body">
+          <h4>Internal Link Equity Injection (<code>EXPAND_INTERNAL_LINKS</code>)</h4>
+          <div class="rec-meta">
+            <span>Reason Code: <strong><code>STRIKING_OPPORTUNITY</code></strong></span>
+            <span>Target: <strong>Ranks 3.5 – 8.5</strong></span>
+            <span>Evidence: <strong>Model Score $\ge 0.55$, Stable Position ($\text{std\_pos} \le 1.5$)</strong></span>
+          </div>
+          <p class="rec-detail-p">
+            Identify high-converting, rank-stable assets hovering just behind the Top-3 boundary. Channel internal link equity from topically related, high-authority internal pillars using exact and partial match anchor text.
+          </p>
+          <div class="rec-caveat">
+            Caveat: Inspect competitor backlink moats; internal links cannot overcome unassailable domain authority moats (e.g., government portals or major institutional domains).
+          </div>
+        </div>
+      </div>
+
+      <!-- The No-Go List -->
+      <div class="lead-measure" style="margin-top: 3rem;">
+        <h3>Explicit Operational Prohibitions (The No-Go List)</h3>
+        <p>To prevent catastrophic ranking loss, the following actions must never be automated based on model outputs:</p>
+      </div>
+
+      <div class="no-go-grid">
+        <div class="no-go-item">
+          <div class="no-go-title">1. No Autonomous LLM Rewrites</div>
+          <div class="no-go-desc">
+            Directly piping flagged decay URLs to unsupervised language models for programmatic content rewriting introduces hallucinated facts and triggers algorithmic search quality demotions.
+          </div>
+        </div>
+        <div class="no-go-item">
+          <div class="no-go-title">2. No Programmatic 301 Redirects</div>
+          <div class="no-go-desc">
+            Never automate URL deprecation or canonical redirection based on short-term decay velocity; improper redirection permanently destroys historic external backlink equity.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 08. REPRODUCIBILITY -->
+    <section id="reproducibility" class="scroll-reveal">
+      <div class="section-header">
+        <span class="section-num">08</span>
+        <h2>Reproducibility &amp; Pipeline Code</h2>
+      </div>
+
+      <div class="lead-measure">
+        <p>
+          In accordance with scientific open-source principles, all data contracts, baseline heuristic rules, gradient-boosted training scripts, and validation audit receipts are fully tracked and version-controlled.
+        </p>
+      </div>
+
+      <div class="repro-block">
+        <ul class="repro-list">
+          <li>
+            <span>Data Contract Verification &amp; Grain Checks</span>
+            <span class="repro-path"><code>work/notebooks/w03_data_contract.ipynb</code></span>
+          </li>
+          <li>
+            <span>Baseline Heuristic Action Score Pipeline</span>
+            <span class="repro-path"><code>work/notebooks/w04_baseline_score.ipynb</code></span>
+          </li>
+          <li>
+            <span>LightGBM Model Training &amp; Grouped Evaluation</span>
+            <span class="repro-path"><code>work/notebooks/w05_model.ipynb</code></span>
+          </li>
+          <li>
+            <span>Validation Audit, Leakage Checks &amp; Diagnostics</span>
+            <span class="repro-path"><code>work/notebooks/w06_validation_audit.ipynb</code></span>
+          </li>
+          <li>
+            <span>Action Playbook Queue Generation &amp; Export</span>
+            <span class="repro-path"><code>work/notebooks/w07_action_playbook.ipynb</code></span>
+          </li>
+          <li>
+            <span>Version Controlled Metrics Receipts</span>
+            <span class="repro-path"><code>work/outputs/*.json</code></span>
+          </li>
+        </ul>
+      </div>
+
+      <p class="lead-measure" style="font-size: 0.9rem;">
+        Source repository access: <a href="https://github.com/your-username/your-repo-name" target="_blank" rel="noopener noreferrer">github.com/your-username/your-repo-name</a> (Contains exact commits matching this published paper).
+      </p>
+    </section>
+
+    <!-- 09. ACKNOWLEDGMENTS & DATA CREDIT -->
+    <section id="acknowledgments" class="lead-measure scroll-reveal">
+      <div class="section-header">
+        <span class="section-num">09</span>
+        <h2>Acknowledgments &amp; Data Credit</h2>
+      </div>
+
+      <p>
+        Built on the FlyRank ML Internship dataset.
+      </p>
+      <p style="font-size: 0.92rem; color: var(--text-muted);">
+        Telemetry, data warehousing infrastructure, and star-schema partitioned datasets were provided by <a href="https://flyrank.ai" target="_blank" rel="noopener noreferrer">FlyRank.ai</a>.
+      </p>
+    </section>
+
+    <!-- Minimal Research Footer -->
+    <footer>
+      <div>
+        <strong>Predictive Content Opportunity Scoring</strong> · Faris Elbaz<br />
+        FlyRank ML Internship Capstone Research · 2026
+      </div>
+      <div>
+        Telemetry Source: <a href="https://flyrank.ai" target="_blank" rel="noopener noreferrer">FlyRank.ai</a> · All Tenant Hashes Anonymized
+      </div>
+    </footer>
+
+  </main>
+
+  <!-- Scroll Progress & Intersection Observer Logic -->
+  <script>
+    // 1. Reading Progress Bar
+    window.addEventListener('scroll', () => {
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const scrolled = (window.scrollY / docHeight) * 100;
+      const bar = document.getElementById('progress-bar');
+      if (bar) {
+        bar.style.width = scrolled + '%';
+        bar.setAttribute('aria-valuenow', Math.round(scrolled));
+      }
+    }, { passive: true });
+
+    // 2. Active Section Spy for Minimal Masthead
+    const sections = document.querySelectorAll('section[id]');
+    const navLinks = document.querySelectorAll('.masthead-toc a');
+
+    window.addEventListener('scroll', () => {
+      let currentId = '';
+      const scrollPos = window.scrollY + 120;
+
+      sections.forEach(section => {
+        const top = section.offsetTop;
+        const height = section.offsetHeight;
+        if (scrollPos >= top && scrollPos < top + height) {
+          currentId = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + currentId) {
+          link.classList.add('active');
+        }
+      });
+    }, { passive: true });
+
+    // 3. Editorial Scroll Reveal (Respects prefers-reduced-motion)
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!prefersReducedMotion) {
+      const observer = new IntersectionObserver((entries, obs) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            obs.unobserve(entry.target);
+          }
+        });
+      }, {
+        threshold: 0.1,
+        rootMargin: '0px 0px -40px 0px'
+      });
+
+      document.querySelectorAll('.scroll-reveal').forEach(el => observer.observe(el));
+    } else {
+      document.querySelectorAll('.scroll-reveal').forEach(el => el.classList.add('is-visible'));
+    }
+  </script>
+</body>
+</html>
